@@ -400,9 +400,6 @@
 //   );
 // }
 
-
-
-
 "use client";
 import { useState, useEffect } from "react";
 import useSWR from "swr";
@@ -410,10 +407,9 @@ import Image from "next/image";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 
-const Search = dynamic(
-  () => import("lucide-react").then((mod) => mod.Search),
-  { ssr: false }
-);
+const Search = dynamic(() => import("lucide-react").then((mod) => mod.Search), {
+  ssr: false,
+});
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
@@ -462,7 +458,9 @@ export default function PostSearch({ username }) {
 
   // Fetch posts data
   const { data, error } = useSWR(
-    username ? `/api/profilePosts?username=${username}&page=${currentPage}` : null,
+    username
+      ? `/api/profilePosts?username=${username}&page=${currentPage}`
+      : null,
     fetcher
   );
 
@@ -484,19 +482,18 @@ export default function PostSearch({ username }) {
     }
   }, [commentsData]);
 
-  if (error)
-    return <div className="p-6 text-red-500">Error loading posts</div>;
-  if (!data)
-    return <div className="p-6 text-gray-500">Loading posts...</div>;
+  if (error) return <div className="p-6 text-red-500">Error loading posts</div>;
+  if (!data) return <div className="p-6 text-gray-500">Loading posts...</div>;
 
   // Utility function to normalize URLs (remove query parameters)
   function normalizeUrl(url) {
-    return url.split('?')[0];
+    return url.split("?")[0];
   }
 
   const imageAnalysisResults =
-    riskScoreData && riskScoreData.imageAnalysis ? riskScoreData.imageAnalysis : [];
-
+    riskScoreData && riskScoreData.imageAnalysis
+      ? riskScoreData.imageAnalysis
+      : [];
   // Process posts data and merge with analysis results
   const posts = (data.data && data.data.items ? data.data.items : []).map(
     (post) => {
@@ -529,8 +526,8 @@ export default function PostSearch({ username }) {
         }
       }
 
-      const matchingAnalysis = imageAnalysisResults.find((analysis) =>
-        normalizeUrl(analysis.imageUrl) === normalizeUrl(imageUrl)
+      const matchingAnalysis = imageAnalysisResults.find(
+        (analysis) => normalizeUrl(analysis.imageUrl) === normalizeUrl(imageUrl)
       );
       const sightLabel = matchingAnalysis ? matchingAnalysis.label : "";
 
@@ -591,9 +588,7 @@ export default function PostSearch({ username }) {
 
   return (
     <div className="p-6 text-white">
-      <h1 className="text-[40px] text-[#F0FFFF] font-semibold mb-4">
-        Summary
-      </h1>
+      <h1 className="text-[40px] text-[#F0FFFF] font-semibold mb-4">Summary</h1>
 
       <div className="flex items-center gap-4 mb-4">
         <div className="relative flex-1">
@@ -629,7 +624,10 @@ export default function PostSearch({ username }) {
           <tbody className="divide-y text-[#F0FFFF] divide-gray-700">
             {filteredPosts.length > 0 ? (
               filteredPosts.map((post, index) => (
-                <tr key={index} className="hover:bg-[#323232] transition-colors">
+                <tr
+                  key={index}
+                  className="hover:bg-[#323232] transition-colors"
+                >
                   <td className="p-3">
                     {post.imageUrl ? (
                       <div className="relative w-[60px] h-[60px]">
@@ -653,7 +651,9 @@ export default function PostSearch({ username }) {
                     {truncateText(post.titleSnippet, 100)}
                   </td>
                   <td className="p-3">{post.dateTime}</td>
-                  <td className="p-3 text-[14px]">{formatNumber(post.likes)}</td>
+                  <td className="p-3 text-[14px]">
+                    {formatNumber(post.likes)}
+                  </td>
                   <td className="p-3 text-[14px] text-[#2ABDB2]">
                     {formatNumber(post.commentsCount)}
                   </td>
@@ -690,7 +690,11 @@ export default function PostSearch({ username }) {
         </button>
         {Array.from({ length: totalPages }, (_, index) => {
           const pageNumber = index + 1;
-          if (totalPages === 12 && pageNumber > 5 && pageNumber !== totalPages) {
+          if (
+            totalPages === 12 &&
+            pageNumber > 5 &&
+            pageNumber !== totalPages
+          ) {
             if (pageNumber === 6) {
               return (
                 <span
@@ -733,20 +737,31 @@ export default function PostSearch({ username }) {
             className="bg-[#1f2937] text-white p-4 md:p-6 rounded-md relative w-[90%] max-w-[500px] max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              className="absolute top-2 right-2 text-[16px] px-2 py-1 bg-[#000000] font-bold"
-              onClick={handleCloseModal}
-            >
-              X
-            </button>
-            {/* Main Post Image */}
+            <div className="flex justify-between items-center">
+              <p>{selectedPost.dateTime}</p>
+              <button
+                className="text-[16px] px-2 py-1 bg-[#000000] font-bold"
+                onClick={handleCloseModal}
+              >
+                X
+              </button>
+            </div>
+            {/* Main Post Image or Video */}
             <div className="relative w-full mt-5 h-[250px]">
-              <Image
-                src={selectedPost.imageUrl}
-                alt="Post image"
-                fill
-                className="object-contain object-center rounded bg-[#1f2937]"
-              />
+              {selectedPost.is_video && selectedPost.video_url ? (
+                <video
+                  src={selectedPost.video_url}
+                  controls
+                  className="h-full w-full object-contain rounded"
+                />
+              ) : (
+                <Image
+                  src={selectedPost.imageUrl}
+                  alt="Post image"
+                  fill
+                  className="object-contain object-center rounded bg-[#1f2937]"
+                />
+              )}
               {selectedPost.sightLabel && (
                 <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-xs text-center text-white p-1">
                   {selectedPost.sightLabel}
@@ -787,14 +802,14 @@ export default function PostSearch({ username }) {
                     child.image_versions.items[0]
                   ) {
                     childUrl = child.image_versions.items[0].url;
-                  } else if (
-                    child.video_versions &&
-                    child.video_versions[0]
-                  ) {
+                  } else if (child.video_versions && child.video_versions[0]) {
                     childUrl = child.video_versions[0].url;
                   }
                   return (
-                    <div key={i} className="relative w-[80px] h-[80px] flex-shrink-0">
+                    <div
+                      key={i}
+                      className="relative w-[80px] h-[80px] flex-shrink-0"
+                    >
                       {childUrl ? (
                         <Image
                           src={childUrl}

@@ -6,7 +6,7 @@
 //     return res.status(400).json({ error: "Username query parameter is required." });
 //   }
 
-  
+
 //   const requestedPage = page ? parseInt(page, 10) : 1;
 //   const postsPerPage = 5;
 //   const requiredPostsCount = requestedPage * postsPerPage;
@@ -123,10 +123,10 @@
 //       }
 
 //       const data = await response.json();
-      
+
 //       // Log the entire API response
 //       // console.log("Complete API response:", JSON.stringify(data, null, 2));
-      
+
 //       // Check for tagged user information based on client's format.
 //       if (data.data && data.data.items) {
 //         data.data.items.forEach((post, index) => {
@@ -346,7 +346,6 @@ export default async function handler(req, res) {
       }
 
       const data = await response.json();
-
       // Process and log details for each post in the response.
       if (data.data && data.data.items) {
         data.data.items.forEach((post, index) => {
