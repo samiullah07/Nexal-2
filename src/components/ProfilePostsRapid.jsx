@@ -455,7 +455,7 @@ export default function PostSearch({ username }) {
   const [showChildPosts, setShowChildPosts] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = 12;
-
+  const [displayedPost, setDisplayedPost] = useState("");
   // Fetch posts data
   const { data, error } = useSWR(
     username
@@ -582,6 +582,7 @@ export default function PostSearch({ username }) {
     setShowChildPosts(false); // Reset child posts view
   };
   const handleCloseModal = () => {
+    setDisplayedPost("");
     setSelectedPost(null);
     setShowChildPosts(false);
   };
@@ -756,7 +757,7 @@ export default function PostSearch({ username }) {
                 />
               ) : (
                 <Image
-                  src={selectedPost.imageUrl}
+                  src={displayedPost || selectedPost.imageUrl}
                   alt="Post image"
                   fill
                   className="object-contain object-center rounded bg-[#1f2937]"
@@ -808,7 +809,8 @@ export default function PostSearch({ username }) {
                   return (
                     <div
                       key={i}
-                      className="relative w-[80px] h-[80px] flex-shrink-0"
+                      onClick={() => setDisplayedPost(childUrl)}
+                      className="relative w-[80px] h-[80px] flex-shrink-0 cursor-pointer"
                     >
                       {childUrl ? (
                         <Image
