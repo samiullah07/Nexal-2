@@ -10,6 +10,9 @@ import { useParams } from "next/navigation";
 import useSWR from "swr";
 import Image from "next/image";
 import Navbar from '@/components/Navbar';
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+dayjs.extend(relativeTime);
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
@@ -26,6 +29,12 @@ export default function ProfilePage() {
       refreshInterval: 0,
     }
   );
+
+  const { data: postData, error } = useSWR(
+    id ? `/api/profilePosts?username=${id}` : null,
+    fetcher
+  );
+  let postDate = postData?.data?.items?.[0]?.taken_at;
 
   // Fetch risk score
   const { data: riskScoreData, error: riskScoreError } = useSWR(
@@ -45,8 +54,14 @@ export default function ProfilePage() {
     {
       iconSrc: "/card2.png",
       title: "Latest Post",
-      mainText: "12,642",
-      subText: "+4.78%",
+      mainText: postDate
+        ? dayjs(new Date(postDate * 1000).toLocaleDateString()).fromNow()
+        : "no posts yet",
+      subText: postDate
+        ? dayjs(new Date(postDate * 1000).toLocaleDateString()).format(
+            "DD/MM/YYYY"
+          )
+        : "",
       subTextColor: "text-[#28A745]",
     },
     {
@@ -58,9 +73,9 @@ export default function ProfilePage() {
     },
     {
       iconSrc: "/card4.png",
-      title: "Last Seen",
-      mainText: "50 Minutes Ago",
-      subText: "14 January 2025",
+      title: "Contact info",
+      mainText: "+1 (555) 123-4567",
+      subText: "",
       subTextColor: "text-[#28A745]",
     },
   ];
