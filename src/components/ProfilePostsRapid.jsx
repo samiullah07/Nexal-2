@@ -406,10 +406,23 @@ import useSWR from "swr";
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import CustomDatePicker from "./CustomDatePicker";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const Search = dynamic(() => import("lucide-react").then((mod) => mod.Search), {
   ssr: false,
 });
+const Calendar = dynamic(
+  () => import("lucide-react").then((mod) => mod.Calendar),
+  {
+    ssr: false,
+  }
+);
+const Download = dynamic(
+  () => import("lucide-react").then((mod) => mod.Download),
+  { ssr: false }
+);
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
 
@@ -456,6 +469,12 @@ export default function PostSearch({ username }) {
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = 12;
   const [displayedPost, setDisplayedPost] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
+  const [labelFilter, setLabelFilter] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [searchKeywords, setSearchKeywords] = useState("");
+  const [showStories, setShowStories] = useState(false);
+
   // Fetch posts data
   const { data, error } = useSWR(
     username
@@ -469,10 +488,16 @@ export default function PostSearch({ username }) {
     username ? `/api/riskScore?username=${username}` : null,
     fetcher
   );
+  console.log(riskScoreData);
 
   // Fetch comments data when a post is selected
   const { data: commentsData, error: commentsError } = useSWR(
     selectedPost ? `/api/postComments?postId=${selectedPost.id}` : null,
+    fetcher
+  );
+  // Fetch stories data
+  const { data: storiesData, error: storiesError } = useSWR(
+    username && showStories ? `/api/userStories?username=${username}` : null,
     fetcher
   );
 
@@ -494,6 +519,7 @@ export default function PostSearch({ username }) {
     riskScoreData && riskScoreData.imageAnalysis
       ? riskScoreData.imageAnalysis
       : [];
+
   // Process posts data and merge with analysis results
   const posts = (data.data && data.data.items ? data.data.items : []).map(
     (post) => {
@@ -560,10 +586,76 @@ export default function PostSearch({ username }) {
       };
     }
   );
+  // Get all unique labels for filter dropdown
+  const allLabels = [
+    ...new Set(posts.map((post) => post.sightLabel).filter((label) => label)),
+  ];
+  // Process stories data if available
+  const stories = showStories
+    ? (storiesData?.data?.stories || []).map((story) => {
+        let storyUrl =
+          story.image_versions2?.candidates?.[0]?.url ||
+          story.video_versions?.[0]?.url ||
+          null;
 
-  const filteredPosts = posts.filter((post) =>
-    post.titleSnippet.toLowerCase().includes(search.toLowerCase())
-  );
+        const matchingAnalysis = imageAnalysisResults.find(
+          (analysis) =>
+            normalizeUrl(analysis.imageUrl) === normalizeUrl(storyUrl)
+        );
+        const sightLabel = matchingAnalysis ? matchingAnalysis.label : "";
+
+        return {
+          ...story,
+          storyUrl,
+          sightLabel,
+          timestamp: story.taken_at
+            ? new Date(story.taken_at * 1000).toLocaleString()
+            : "N/A",
+        };
+      })
+    : [];
+  // Filter posts based on search, date, and label
+  const filteredPosts = posts.filter((post) => {
+    // Text search filter (multiple keywords)
+    const keywordMatch = searchKeywords
+      ? searchKeywords
+          .split(",")
+          .some((keyword) =>
+            post.titleSnippet
+              .toLowerCase()
+              .includes(keyword.trim().toLowerCase())
+          )
+      : true;
+
+    // Date filter
+    const dateMatch = dateFilter
+      ? new Date(post.dateTime).toLocaleDateString() ===
+        new Date(dateFilter).toLocaleDateString()
+      : true;
+
+    // Label filter
+    const labelMatch = labelFilter
+      ? post.sightLabel && post.sightLabel.includes(labelFilter)
+      : true;
+
+    // Additional search filter (single term)
+    const searchMatch = search
+      ? post.titleSnippet.toLowerCase().includes(search.toLowerCase())
+      : true;
+
+    return keywordMatch && dateMatch && labelMatch && searchMatch;
+  });
+  // Filter comments for search
+  const filteredComments =
+    commentsData?.comments?.filter((comment) =>
+      searchKeywords
+        ? searchKeywords
+            .split(",")
+            .some((keyword) =>
+              comment.text.toLowerCase().includes(keyword.trim().toLowerCase())
+            )
+        : true
+    ) || [];
 
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
@@ -586,30 +678,313 @@ export default function PostSearch({ username }) {
     setSelectedPost(null);
     setShowChildPosts(false);
   };
+  const resetFilters = () => {
+    setSearch("");
+    setDateFilter("");
+    setLabelFilter("");
+    setSearchKeywords("");
+  };
+  const exportToPDF = async () => {
+    const doc = new jsPDF();
+
+    // Add logo
+    doc.addImage("/logo.png", "PNG", 10, 10, 50, 15);
+
+    // Title and date
+    doc.setFontSize(20);
+    doc.text("Posts Report", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 105, 30, {
+      align: "center",
+    });
+
+    // Filters
+    let filtersInfo = "Filters: None";
+    if (dateFilter || labelFilter || search || searchKeywords) {
+      filtersInfo = "Filters: ";
+      if (dateFilter)
+        filtersInfo += `Date: ${new Date(dateFilter).toLocaleDateString()}, `;
+      if (labelFilter) filtersInfo += `Label: ${labelFilter}, `;
+      if (search) filtersInfo += `Search: ${search}, `;
+      if (searchKeywords) filtersInfo += `Keywords: ${searchKeywords}`;
+      filtersInfo = filtersInfo.replace(/, $/, "");
+    }
+    doc.text(filtersInfo, 105, 40, { align: "center" });
+
+    // Prepare data
+    const tableData = await Promise.all(
+      filteredPosts.map(async (post) => {
+        let imageData = null;
+
+        if (post.imageUrl) {
+          try {
+            const response = await fetch(post.imageUrl, { mode: "cors" });
+            const blob = await response.blob();
+            imageData = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.readAsDataURL(blob);
+            });
+          } catch (error) {
+            console.error("Image fetch failed:", post.imageUrl, error);
+          }
+        }
+
+        return {
+          image: imageData,
+          title: truncateText(post.titleSnippet, 50),
+          date: post.dateTime,
+          likes: post.likes,
+          comments: post.commentsCount,
+          label: post.sightLabel || "safe",
+        };
+      })
+    );
+
+    // Define columns
+    const columns = [
+      { header: "Image", dataKey: "image" },
+      { header: "Post Title", dataKey: "title" },
+      { header: "Date", dataKey: "date" },
+      { header: "Likes", dataKey: "likes" },
+      { header: "Comments", dataKey: "comments" },
+      { header: "Label", dataKey: "label" },
+    ];
+
+    // Render table
+    autoTable(doc, {
+      columns,
+      body: tableData,
+      startY: 50,
+      styles: {
+        fontSize: 10,
+        cellPadding: 2,
+        overflow: "linebreak",
+        valign: "middle",
+      },
+      headStyles: {
+        fillColor: [52, 194, 177],
+      },
+      columnStyles: {
+        image: { cellWidth: 25 },
+      },
+      didParseCell: (data) => {
+        if (data.column.dataKey === "image" && data.cell.raw) {
+          data.cell.text = ""; // prevent placeholder text
+        }
+      },
+      didDrawCell: (data) => {
+        if (data.column.dataKey === "image" && data.cell.raw) {
+          const img = data.cell.raw;
+
+          const imgSize = 16; // square image size
+          const x = data.cell.x + 2;
+          const y = data.cell.y + 2;
+
+          // Draw the image inside the cell
+          doc.addImage(img, "JPEG", x, y, imgSize, imgSize, undefined, "FAST");
+
+          // Manually increase row height if needed
+          const rowHeight = imgSize + 4;
+          if (data.row.height < rowHeight) {
+            data.row.height = rowHeight;
+          }
+        }
+      },
+    });
+
+    doc.save(`${username}_posts_report.pdf`);
+  };
 
   return (
     <div className="p-6 text-white">
       <h1 className="text-[40px] text-[#F0FFFF] font-semibold mb-4">Summary</h1>
 
-      <div className="flex items-center gap-4 mb-4">
+      {/* Search and Filter Controls */}
+      <div className="flex flex-col gap-4 mb-4">
+        <div className="flex items-center gap-4">
+          <div className="relative flex-1">
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={18}
+            />
+            <input
+              type="text"
+              placeholder="Filter by post title"
+              className="w-full p-2 pl-10 pr-4 bg-[#1f2937] text-white border border-gray-500 rounded-md focus:outline-none focus:border-teal-400"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <button
+            className="bg-[#52C2B1] px-4 py-2 text-white border rounded-md"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            {showFilters ? "Hide Filters" : "Filter By"}
+          </button>
+        </div>
+
+        {/* Multiple keywords search */}
         <div className="relative flex-1">
-          <Search
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-            size={18}
-          />
           <input
             type="text"
-            placeholder="Filter by post title"
-            className="w-full p-2 pl-10 pr-4 bg-[#1f2937] text-white border border-gray-500 rounded-md focus:outline-none focus:border-teal-400"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search for multiple keywords (comma separated)"
+            className="w-full p-2 pl-4 pr-4 bg-[#1f2937] text-white border border-gray-500 rounded-md focus:outline-none focus:border-teal-400"
+            value={searchKeywords}
+            onChange={(e) => setSearchKeywords(e.target.value)}
           />
         </div>
-        <button className="bg-[#52C2B1] px-4 py-2 text-white border rounded-md">
-          Filter By
+      </div>
+
+      {/* Expanded Filters Section */}
+      {showFilters && (
+        <div className="bg-[#1f2937] p-4 mb-4 rounded-md border border-gray-700">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Date Filter */}
+            <div className="relative">
+              <CustomDatePicker
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+              />
+            </div>
+
+            {/* Label Filter */}
+            <div>
+              <select
+                className="w-full p-2 bg-[#1f2937] text-white border border-gray-500 rounded-md focus:outline-none focus:border-teal-400"
+                value={labelFilter}
+                onChange={(e) => setLabelFilter(e.target.value)}
+              >
+                <option value="">All Labels</option>
+                {allLabels.map((label, index) => (
+                  <option key={index} value={label}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Reset Filters Button */}
+            <div>
+              <button
+                className="w-full p-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+                onClick={resetFilters}
+              >
+                Reset Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filter Status Indicators */}
+      {(dateFilter || labelFilter || searchKeywords) && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {dateFilter && (
+            <span className="px-3 py-1 bg-gray-700 rounded-full text-sm flex items-center">
+              Date: {new Date(dateFilter).toLocaleDateString()}
+              <button
+                onClick={() => setDateFilter("")}
+                className="ml-2 text-gray-300 hover:text-white"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {labelFilter && (
+            <span className="px-3 py-1 bg-gray-700 rounded-full text-sm flex items-center">
+              Label: {labelFilter}
+              <button
+                onClick={() => setLabelFilter("")}
+                className="ml-2 text-gray-300 hover:text-white"
+              >
+                ×
+              </button>
+            </span>
+          )}
+          {searchKeywords && (
+            <span className="px-3 py-1 bg-gray-700 rounded-full text-sm flex items-center">
+              Keywords: {searchKeywords}
+              <button
+                onClick={() => setSearchKeywords("")}
+                className="ml-2 text-gray-300 hover:text-white"
+              >
+                ×
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      <div className="flex gap-4 mb-6">
+        <button
+          onClick={() => setShowStories(!showStories)}
+          className={`px-4 py-2 border rounded-md ${
+            showStories ? "bg-teal-500" : "bg-[#1f2937]"
+          }`}
+        >
+          {showStories ? "Hide Stories" : "Show Stories"}
+        </button>
+        <button
+          onClick={exportToPDF}
+          className="flex items-center gap-2 px-4 py-2 bg-[#1f2937] border rounded-md hover:bg-gray-700"
+        >
+          <Download size={18} />
+          Export PDF
         </button>
       </div>
 
+      {/* Stories Section */}
+      {showStories && (
+        <div className="bg-[#1f2937] mb-6 p-4 rounded-md border border-gray-700">
+          <h2 className="text-xl font-semibold mb-4">Stories Analysis</h2>
+          {storiesError ? (
+            <div className="text-red-500">Error loading stories</div>
+          ) : !storiesData ? (
+            <div className="text-gray-500">Loading stories...</div>
+          ) : stories.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {stories.map((story, index) => (
+                <div key={index} className="relative group">
+                  <div className="relative w-full h-40 rounded-md overflow-hidden">
+                    {story.storyUrl ? (
+                      story.storyUrl.includes(".mp4") ? (
+                        <video
+                          src={story.storyUrl}
+                          className="w-full h-full object-cover"
+                          controls
+                        />
+                      ) : (
+                        <Image
+                          src={story.storyUrl}
+                          alt={`Story ${index + 1}`}
+                          fill
+                          className="object-cover"
+                        />
+                      )
+                    ) : (
+                      <div className="w-full h-full bg-gray-800 flex items-center justify-center">
+                        No media
+                      </div>
+                    )}
+                    {story.sightLabel && (
+                      <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-xs p-1 text-center">
+                        {story.sightLabel}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-400">
+                    {story.timestamp}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-gray-400">No stories available</div>
+          )}
+        </div>
+      )}
       <div className="bg-[#1f2937] mt-8 border border-gray-700 rounded-md overflow-x-auto">
         <table className="w-full text-left border-collapse">
           <thead className="bg-[#1f2937]">
