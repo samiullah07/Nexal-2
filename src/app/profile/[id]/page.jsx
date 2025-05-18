@@ -12,6 +12,9 @@ import Image from "next/image";
 import Navbar from '@/components/Navbar';
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
+import StoriesSection from '@/components/StoriesSection';
+
+
 dayjs.extend(relativeTime);
 
 const fetcher = (url) => fetch(url).then((res) => res.json());
@@ -164,6 +167,11 @@ export default function ProfilePage() {
               <InterestsCard username={id} />
             </div>
            
+           {/* Stories Section */}
+               <div className="mx-9 mt-24 mb-4"> 
+                <StoriesSection username={id} />
+                </div>
+   
 
             {/* Profile Posts */}
             <div className="mt-16 px-5">

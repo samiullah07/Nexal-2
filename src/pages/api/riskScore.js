@@ -1214,6 +1214,597 @@
 
 
 
+// // ---------------------
+// // Data Simplification Functions
+// // ---------------------
+// function simplifyData(items, type) {
+//   return items.map(item => {
+//     const username =
+//       item.username && item.username.trim() !== ''
+//         ? item.username
+//         : (item.fullName && item.fullName.trim() !== '' ? item.fullName : `unknown_${item.id}`);
+//     if (type === 'post') {
+//       return {
+//         id: item.id,
+//         caption: typeof item.caption === 'string' ? item.caption.slice(0, 500) : '',
+//         likeCount: item.like_count,
+//         username,
+//         tags:
+//           item.tags?.map(tag => {
+//             const tagUsername =
+//               tag.username && tag.username.trim() !== ''
+//                 ? tag.username
+//                 : (tag.fullName && tag.fullName.trim() !== '' ? tag.fullName : `unknown_${tag.id || 'tag'}`);
+//             return {
+//               username: tagUsername,
+//               fullName: tag.fullName || '',
+//               profileImage: tag.profileImage || '',
+//               gender: tag.gender || ''
+//             };
+//           }) || [],
+//         taggedUsers:
+//           item.tagged_users && item.tagged_users.length > 0
+//             ? item.tagged_users.map(tagged => {
+//                 return {
+//                   username: tagged.user.username || '',
+//                   fullName: tagged.user.full_name || '',
+//                   profileImage: tagged.user.profile_pic_url || ''
+//                 };
+//               })
+//             : [],
+//         imageUrl:
+//           item.imageUrl ||
+//           (item.image_versions &&
+//             item.image_versions.items &&
+//             item.image_versions.items.length > 0
+//               ? item.image_versions.items[0].url
+//               : null)
+//       };
+//     } else if (type === 'comment') {
+//       return {
+//         id: item.id,
+//         text: typeof item.text === 'string' ? item.text.slice(0, 500) : '',
+//         username,
+//         likeCount: item.like_count || 0
+//       };
+//     }
+//     return item;
+//   });
+// }
+
+// function aggregateEngagement(posts, comments) {
+//   const engagement = {};
+//   posts.forEach(post => {
+//     const user = post.username;
+//     if (user) {
+//       engagement[user] = engagement[user] || { likes: 0, comments: 0 };
+//       engagement[user].likes += post.likeCount;
+//     }
+//     post.tags.forEach(tag => {
+//       const tagUser = tag.username;
+//       if (tagUser) {
+//         engagement[tagUser] = engagement[tagUser] || { likes: 0, comments: 0 };
+//         engagement[tagUser].likes += Math.floor(post.likeCount / 2);
+//       }
+//     });
+//   });
+//   comments.forEach(comment => {
+//     const user = comment.username;
+//     if (user) {
+//       engagement[user] = engagement[user] || { likes: 0, comments: 0 };
+//       engagement[user].comments += 1;
+//       engagement[user].likes += comment.likeCount;
+//     }
+//   });
+//   return engagement;
+// }
+
+// function chunkArray(arr, chunkSize = 5) {
+//   const chunks = [];
+//   for (let i = 0; i < arr.length; i += chunkSize) {
+//     chunks.push(arr.slice(i, i + chunkSize));
+//   }
+//   return chunks;
+// }
+
+// function isValidRiskScore(score) {
+//   const num = Number(score);
+//   return !isNaN(num) && num >= 0 && num <= 100;
+// }
+
+// function extractValidJSON(text) {
+//   const startIndex = text.indexOf('{');
+//   if (startIndex === -1) return null;
+//   let openBraces = 0;
+//   let endIndex = startIndex;
+//   for (let i = startIndex; i < text.length; i++) {
+//     if (text[i] === '{') openBraces++;
+//     if (text[i] === '}') openBraces--;
+//     if (openBraces === 0) {
+//       endIndex = i;
+//       break;
+//     }
+//   }
+//   return text.substring(startIndex, endIndex + 1);
+// }
+
+// // ---------------------
+// // GPT-4 Analysis Functions
+// // ---------------------
+// async function getRiskForChunk(chunk, aggregatedData, profileDetails) {
+//   const jsonData = JSON.stringify({
+//     data: chunk,
+//     engagementMetrics: aggregatedData,
+//     profileDetails
+//   });
+//   const prompt = 
+// `You are a seasoned intelligence analyst evaluating the risk level of a social media profile.
+// Based on the JSON data below, calculate a risk score between 0 (minimal risk) and 100 (very high risk).
+// The instructions are:
+// 1. If the profile is normal and exhibits little or no concerning activity, assign a risk score that is moderate and low. In such cases, the risk score should not exceed 20–30.
+// 2. Only if the data indicates significant signs of concerning activity should the risk score be high (above 60).
+// 3. Return only the risk score as a single number with no extra text.
+
+// Data: ${jsonData}`;
+
+//   const response = await fetch('https://api.openai.com/v1/chat/completions', {
+//     method: 'POST',
+//     headers: { 
+//       'Content-Type': 'application/json', 
+//       'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` 
+//     },
+//     body: JSON.stringify({
+//       model: 'gpt-4o-2024-08-06',
+//       messages: [{ role: 'user', content: prompt }],
+//       max_tokens: 20,
+//       temperature: 0.2
+//     })
+//   });
+//   const responseText = await response.text();
+//   if (!response.ok)
+//     throw new Error(`OpenAI API error (risk chunk): ${responseText}`);
+//   const dataResp = JSON.parse(responseText);
+//   const score = dataResp.choices[0].message.content.trim();
+//   if (!isValidRiskScore(score)) console.warn("Invalid risk score received:", score);
+//   return score;
+// }
+
+// async function getInterestsForChunk(chunk, aggregatedData, profileDetails) {
+//   const jsonData = JSON.stringify({
+//     data: chunk,
+//     engagementMetrics: aggregatedData,
+//     profileDetails
+//   });
+//   // Modified prompt with weights. This prompt instructs the analyzer to return each interest with a weight (1 to 10).
+//   const prompt =
+// `You are a social media analyst tasked with identifying the core interests of a user based on their activity data. For each interest, assign a weight between 1 and 10 indicating its prominence in the user's engagement. Return a valid JSON array of objects, each with the keys "interest" (a string) and "weight" (a number). Do not include any extra text.
+
+// Data: ${jsonData}`;
+
+//   const response = await fetch('https://api.openai.com/v1/chat/completions', {
+//     method: 'POST',
+//     headers: { 
+//       'Content-Type': 'application/json',
+//       'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` 
+//     },
+//     body: JSON.stringify({
+//       model: 'gpt-4o-2024-08-06',
+//       messages: [{ role: 'user', content: prompt }],
+//       max_tokens: 80,
+//       temperature: 0.2
+//     })
+//   });
+//   const responseText = await response.text();
+//   if (!response.ok)
+//     throw new Error(`OpenAI API error (interests chunk): ${responseText}`);
+//   const dataResp = JSON.parse(responseText);
+//   try {
+//     let content = dataResp.choices[0].message.content.trim();
+//     content = content.replace(/^```(?:json\s*)?/, '').replace(/```$/, '').trim();
+//     return JSON.parse(content);
+//   } catch (error) {
+//     console.warn("Error parsing interests:", error);
+//     return [];
+//   }
+// }
+
+// async function getRelationshipsForChunk(chunk, aggregatedData, profileDetails) {
+//   const jsonData = JSON.stringify({
+//     data: chunk,
+//     engagementMetrics: aggregatedData,
+//     profileDetails,
+//     note: "For any user with a username starting with 'unknown_', treat the data as incomplete. Use any available metadata such as fullName or gender to classify the relationship."
+//   });
+//   const prompt = 
+// `You are a seasoned intelligence analyst. Analyze the JSON data below and determine the relationships between the target user and their most engaged and tagged users.
+// Follow these detailed rules:
+// 1. Family Members: If two or more users are tagged in the same photo and share the same last name (extracted from their fullName), classify them as "Family".
+// 2. Romantic Partner:
+//    - If the target user's profile details indicate a male gender, then:
+//        * If a female user is tagged in multiple posts with high frequency, classify her as "Girlfriend/Wife".
+//        * If a male user is tagged in multiple posts with high frequency, classify him as "Boyfriend/Husband".
+//    - If the target user's profile details indicate a female gender, then:
+//        * If a male user is tagged in multiple posts with high frequency, classify him as "Boyfriend/Husband".
+// 3. Associates: If business-related comments or multiple interactions (e.g., a combination of likes and comments) are evident, classify as "Associate".
+// 4. Friends: Otherwise, classify as "Friend".
+// **IMPORTANT:** Output only a valid JSON object without any markdown formatting or extra text.
+// The JSON should map each username to one of these exact strings: "Family", "Girlfriend/Wife", "Boyfriend/Husband", "Associate", or "Friend". If no relationships can be determined, output {}.
+// Data: ${jsonData}`;
+
+//   const response = await fetch('https://api.openai.com/v1/chat/completions', {
+//     method: 'POST',
+//     headers: { 
+//       'Content-Type': 'application/json',
+//       'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+//     },
+//     body: JSON.stringify({
+//       model: 'gpt-4o-2024-08-06',
+//       messages: [{ role: 'user', content: prompt }],
+//       max_tokens: 200,
+//       temperature: 0.2
+//     })
+//   });
+  
+//   const responseText = await response.text();
+//   if (!response.ok)
+//     throw new Error(`OpenAI API error (relationships chunk): ${responseText}`);
+  
+//   const dataResp = JSON.parse(responseText);
+//   let content = dataResp.choices[0].message.content.trim();
+//   content = content.replace(/^```(?:json)?\n?/, '').replace(/```$/, '').trim();
+//   try {
+//     return JSON.parse(content);
+//   } catch (error) {
+//     console.warn("Error parsing relationships:", error);
+//     const extracted = extractValidJSON(content);
+//     if (extracted) {
+//       try {
+//         return JSON.parse(extracted);
+//       } catch (err) {
+//         console.warn("Fallback JSON parsing failed:", err);
+//       }
+//     }
+//     return {};
+//   }
+// }
+
+// async function getFinalRiskScore(partialScores) {
+//   const combinedScores = partialScores.join("\n");
+//   const prompt =
+// `You are a seasoned intelligence analyst. Given the following partial risk scores, consolidate them into a final risk score between 0 and 100.
+// Return only the final risk score with no extra text.
+
+// Partial Risk Scores:
+// ${combinedScores}`;
+//   const response = await fetch('https://api.openai.com/v1/chat/completions', {
+//     method: 'POST',
+//     headers: { 
+//       'Content-Type': 'application/json',
+//       'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` 
+//     },
+//     body: JSON.stringify({
+//       model: 'gpt-4o-2024-08-06',
+//       messages: [{ role: 'user', content: prompt }],
+//       max_tokens: 20,
+//       temperature: 0.2
+//     })
+//   });
+//   const responseText = await response.text();
+//   if (!response.ok)
+//     throw new Error(`OpenAI Aggregation API error (risk): ${responseText}`);
+//   const dataResp = JSON.parse(responseText);
+//   const finalScore = dataResp.choices[0].message.content.trim();
+//   if (!isValidRiskScore(finalScore))
+//     console.warn("Invalid final risk score received:", finalScore);
+//   return finalScore;
+// }
+
+// async function getFinalInterests(partialInterestsArrays) {
+//   const prompt =
+// `You are a social media analyst. Given the following arrays of weighted interests, consolidate them to determine the overall top five interests of the user.
+// Return only a JSON array of up to five strings with no extra text.
+
+// Partial Interests Arrays:
+// ${JSON.stringify(partialInterestsArrays)}`;
+//   const response = await fetch('https://api.openai.com/v1/chat/completions', {
+//     method: 'POST',
+//     headers: { 
+//       'Content-Type': 'application/json',
+//       'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` 
+//     },
+//     body: JSON.stringify({
+//       model: 'gpt-4o-2024-08-06',
+//       messages: [{ role: 'user', content: prompt }],
+//       max_tokens: 60,
+//       temperature: 0.2
+//     })
+//   });
+//   const responseText = await response.text();
+//   if (!response.ok)
+//     throw new Error(`OpenAI Aggregation API error (interests): ${responseText}`);
+//   const dataResp = JSON.parse(responseText);
+//   try {
+//     let content = dataResp.choices[0].message.content.trim();
+//     content = content.replace(/^```(?:json\s*)?/, '').replace(/```$/, '').trim();
+//     const interests = JSON.parse(content);
+//     return interests.length > 0 ? interests : ["travel", "food", "music", "sports", "technology"];
+//   } catch (error) {
+//     console.warn("Error parsing final interests:", error);
+//     return ["travel", "food", "music", "sports", "technology"];
+//   }
+// }
+
+// // ---------------------
+// // Data Fetching Functions with Pagination
+// // ---------------------
+// async function fetchUserData(username) {
+//   let allPosts = [];
+//   const maxPages = 5;
+//   for (let page = 1; page <= maxPages; page++) {
+//     const postsRes = await fetch(
+//       `${process.env.NEXT_PUBLIC_BASE_URL}/api/profilePosts?username=${username}&page=${page}`
+//     );
+//     if (!postsRes.ok) {
+//       console.warn(`Failed to fetch posts on page ${page}`);
+//       break;
+//     }
+//     const postsData = await postsRes.json();
+//     const posts = postsData.data?.items || [];
+//     if (posts.length === 0) break;
+//     allPosts = allPosts.concat(posts);
+//   }
+
+//   let allComments = [];
+//   const commentPromises = allPosts.map(async post => {
+//     if (!post.id) return [];
+//     const commentsRes = await fetch(
+//       `${process.env.NEXT_PUBLIC_BASE_URL}/api/postComments?postId=${post.id}`
+//     );
+//     if (!commentsRes.ok) {
+//       console.warn(`Failed to fetch comments for post ${post.id}`);
+//       return [];
+//     }
+//     const cData = await commentsRes.json();
+//     return cData.comments || [];
+//   });
+//   const commentsArray = await Promise.all(commentPromises);
+//   allComments = commentsArray.flat();
+
+//   return {
+//     posts: simplifyData(allPosts, 'post'),
+//     comments: simplifyData(allComments, 'comment')
+//   };
+// }
+
+// async function fetchProfileDetails(username) {
+//   const detailsRes = await fetch(
+//     `${process.env.NEXT_PUBLIC_BASE_URL}/api/profileDetails?username=${username}`
+//   );
+//   const detailsText = await detailsRes.text();
+//   if (!detailsRes.ok) throw new Error('Failed to fetch profile details');
+//   return JSON.parse(detailsText);
+// }
+
+// // ---------------------
+// // Sight Engine Image Analysis Helper
+// // ---------------------
+// function getSightEngineLabel(analysis) {
+//   const labels = [];
+//   if (analysis.nudity && analysis.nudity.safe < 0.8) {
+//     labels.push("adult content");
+//   }
+//   if (analysis.offensive && analysis.offensive.prob > 0.01) {
+//     labels.push("offensive");
+//   }
+//   if (analysis.weapon && analysis.weapon > 0.005) {
+//     labels.push("weapon");
+//   }
+//   if (analysis.drugs && analysis.drugs > 0.005) {
+//     labels.push("drugs");
+//   }
+//   if (labels.length === 0) {
+//     labels.push("safe");
+//   }
+//   return labels.join(", ");
+// }
+
+// async function analyzeImageWithSightEngine(imageUrl) {
+//   const apiUser = '150452328';
+//   const apiSecret = 'uEzhj5Q2FVbg4jfnB4mRc84cdRqTpz4m';
+//   const endpoint = 'https://api.sightengine.com/1.0/check.json';
+//   const params = new URLSearchParams({
+//     api_user: apiUser,
+//     api_secret: apiSecret,
+//     models: 'nudity,wad,offensive',
+//     url: imageUrl
+//   });
+//   const url = `${endpoint}?${params.toString()}`;
+  
+//   const response = await fetch(url);
+//   const responseText = await response.text();
+//   if (!response.ok)
+//     throw new Error(`Sight Engine API error for ${imageUrl}: ${responseText}`);
+  
+//   const analysis = JSON.parse(responseText);
+//   const label = getSightEngineLabel(analysis);
+//   return { imageUrl, analysis, label };
+// }
+
+// // ---------------------
+// // Main API Handler
+// // ---------------------
+// export default async function handler(req, res) {
+//   const { username } = req.query;
+//   if (!username)
+//     return res.status(400).json({ error: 'Username is required' });
+
+//   try {
+//     // Fetch posts, comments, and profile details.
+//     const { posts, comments } = await fetchUserData(username);
+//     const profileDetails = await fetchProfileDetails(username);
+//     const engagementMetrics = aggregateEngagement(posts, comments);
+//     const combinedData = [...posts, ...comments];
+//     const chunks = chunkArray(combinedData); // Uses chunk size of 5
+
+//     // Risk and Interests Analysis
+//     const riskPromises = chunks.map(chunk =>
+//       getRiskForChunk(chunk, engagementMetrics, profileDetails)
+//     );
+//     const interestsPromises = chunks.map(chunk =>
+//       getInterestsForChunk(chunk, engagementMetrics, profileDetails)
+//     );
+//     const partialRiskScores = await Promise.all(riskPromises);
+//     const partialInterestsArrays = await Promise.all(interestsPromises);
+//     const finalRiskScore = await getFinalRiskScore(partialRiskScores);
+//     const finalInterests = await getFinalInterests(partialInterestsArrays);
+
+//     // ---------------------
+//     // Calculate weighted interest percentages
+//     // ---------------------
+//     // First, flatten weighted interests from all chunks
+//     const weightedInterests = partialInterestsArrays.flat();
+//     // Sum weights per interest (case-insensitive)
+//     const aggregatedWeights = {};
+//     weightedInterests.forEach(item => {
+//       const key = item.interest.trim().toLowerCase();
+//       const weight = Number(item.weight) || 1;
+//       aggregatedWeights[key] = (aggregatedWeights[key] || 0) + weight;
+//     });
+//     const totalWeight = Object.values(aggregatedWeights).reduce((sum, weight) => sum + weight, 0);
+//     const interestPercentages = Object.keys(aggregatedWeights).map(interest => ({
+//       interest,
+//       percentage: ((aggregatedWeights[interest] / totalWeight) * 100).toFixed(2)
+//     }));
+//     // Sort interests based on percentage (descending)
+//     interestPercentages.sort((a, b) => b.percentage - a.percentage);
+//     const topFiveInterestsWithPercentage = interestPercentages.slice(0, 5);
+
+//     // ---------------------
+//     // Relationship Analysis (chunk-based)
+//     // ---------------------
+//     // Build a lookup for all tagged images from posts
+//     const taggedLookup = {};
+//     posts.forEach(post => {
+//       if (post.tags && post.tags.length > 0) {
+//         post.tags.forEach(tag => {
+//           const tagUsername = tag.username?.trim();
+//           if (tagUsername && tag.profileImage) {
+//             if (!taggedLookup[tagUsername]) {
+//               taggedLookup[tagUsername] = tag.profileImage;
+//             }
+//           }
+//         });
+//       }
+//       if (post.taggedUsers && post.taggedUsers.length > 0) {
+//         post.taggedUsers.forEach(tagged => {
+//           const tagUsername = tagged.username?.trim();
+//           if (tagUsername && tagged.profileImage) {
+//             if (!taggedLookup[tagUsername]) {
+//               taggedLookup[tagUsername] = tagged.profileImage;
+//             }
+//           }
+//         });
+//       }
+//     });
+
+//     const relationshipChunks = chunkArray(combinedData);
+//     const relationshipsPromises = relationshipChunks.map(chunk =>
+//       getRelationshipsForChunk(chunk, engagementMetrics, profileDetails)
+//     );
+//     const partialRelationships = await Promise.all(relationshipsPromises);
+
+//     // Aggregate relationship counts weighted by engagement.
+//     const relationshipCounts = {};
+//     partialRelationships.forEach(chunkResp => {
+//       Object.entries(chunkResp).forEach(([user, rel]) => {
+//         if (!relationshipCounts[user]) {
+//           relationshipCounts[user] = { Family: 0, "Girlfriend/Wife": 0, "Boyfriend/Husband": 0, Associate: 0, Friend: 0 };
+//         }
+//         const weight = ((engagementMetrics[user]?.likes || 0) + (engagementMetrics[user]?.comments || 0)) || 1;
+//         if (rel in relationshipCounts[user]) {
+//           relationshipCounts[user][rel] += weight;
+//         }
+//       });
+//     });
+
+//     // Build finalRelationships map using the taggedLookup
+//     const defaultImage = "/no-profile-pic-img.png";
+//     const finalRelationships = {};
+//     Object.entries(relationshipCounts).forEach(([user, counts]) => {
+//       if (user.startsWith("unknown_")) return;
+//       let relationshipType = "";
+//       if (counts.Family > 0) {
+//         relationshipType = "Family";
+//       } else if (counts["Girlfriend/Wife"] > 0 || counts["Boyfriend/Husband"] > 0) {
+//         relationshipType = counts["Girlfriend/Wife"] >= counts["Boyfriend/Husband"]
+//           ? "Girlfriend/Wife"
+//           : "Boyfriend/Husband";
+//       } else if (counts.Associate > counts.Friend) {
+//         relationshipType = "Associate";
+//       } else {
+//         relationshipType = "Friend";
+//       }
+
+//       let profileImage = taggedLookup[user] || posts.reduce((acc, post) => {
+//         let tagFound = post.tags && post.tags.find(t => t.username === user);
+//         if (!tagFound && post.taggedUsers) {
+//           tagFound = post.taggedUsers.find(t => t.username === user);
+//         }
+//         return (tagFound && tagFound.profileImage) ? tagFound.profileImage : acc;
+//       }, "");
+
+//       finalRelationships[user] = {
+//         username: user,
+//         relationship: relationshipType,
+//         profileImage: profileImage || defaultImage
+//       };
+//     });
+
+//     // Update finalRelationships with official profile details if available.
+//     const relationshipUsernames = Object.keys(finalRelationships);
+//     const profileDetailsArr = await Promise.all(
+//       relationshipUsernames.map(un => fetchProfileDetails(un).catch(() => ({})))
+//     );
+//     relationshipUsernames.forEach((un, idx) => {
+//       const details = profileDetailsArr[idx] || {};
+//       finalRelationships[un].profileImage =
+//         details.profileImage || finalRelationships[un].profileImage;
+//     });
+
+//     const relationshipsOutput = Object.keys(finalRelationships).length > 0
+//       ? finalRelationships
+//       : "No relationships found";
+
+//     // Main user profile image from profileDetails.
+//     const mainUserProfileImage = profileDetails.profileImage || defaultImage;
+
+//     // Optionally perform image analysis if the final risk score is high.
+//     let imageAnalysisResults = [];
+//     if (Number(finalRiskScore) > 60) {
+//       const imagesToAnalyze = posts.filter(post => post.imageUrl).map(post => post.imageUrl);
+//       if (imagesToAnalyze.length > 0) {
+//         imageAnalysisResults = await Promise.all(
+//           imagesToAnalyze.map(imageUrl => analyzeImageWithSightEngine(imageUrl))
+//         );
+//       }
+//     }
+
+//     // Return consolidated analysis
+//     res.status(200).json({
+//       finalAnalysis: finalRiskScore,
+//       topInterests: topFiveInterestsWithPercentage,
+//       relationships: relationshipsOutput,
+//       mainUserProfileImage,
+//       imageAnalysis: imageAnalysisResults
+//     });
+//   } catch (error) {
+//     console.error("Error in riskScore handler:", error);
+//     res.status(500).json({ error: error.message });
+//   }
+// }
+
+
+
 // ---------------------
 // Data Simplification Functions
 // ---------------------
@@ -1361,9 +1952,14 @@ Data: ${jsonData}`;
     })
   });
   const responseText = await response.text();
+  // ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  console.log('OpenAI raw response:', responseText);
+
   if (!response.ok)
     throw new Error(`OpenAI API error (risk chunk): ${responseText}`);
   const dataResp = JSON.parse(responseText);
+  let content = dataResp.choices[0].message.content.trim();
+  console.log('Interests content to parse:', content);
   const score = dataResp.choices[0].message.content.trim();
   if (!isValidRiskScore(score)) console.warn("Invalid risk score received:", score);
   return score;
@@ -1415,20 +2011,38 @@ async function getRelationshipsForChunk(chunk, aggregatedData, profileDetails) {
     profileDetails,
     note: "For any user with a username starting with 'unknown_', treat the data as incomplete. Use any available metadata such as fullName or gender to classify the relationship."
   });
+//   const prompt = 
+// `You are an analyst. Analyze the target user's social media connections and classify each relationship as one of the following: Friend, Associate, Relative, or Girlfriend/Boyfriend.
+
+// Rules:
+// 1. Relative: Users with the same last name appearing in likes or comments.
+// 2. Friend/Associate:
+//    - If more than 2 likes/comments come from the same profile using slang (e.g., "bro you livin", "I see my man", "let’s go"), classify as Friend.
+//    - If comments are business-like or formal, classify as Associate.
+// 3. Girlfriend/Wife or Boyfriend/Husband:
+//    - For a male target: a female with high tag or like frequency is "Girlfriend/Wife"; a male with high tag or like frequency is "Boyfriend/Husband".
+//    - For a female target: a male with high tag or like frequency is "Boyfriend/Husband"; a female with high tag or like frequency is "Girlfriend/Wife".
+//    - Multiple likes or tags from an opposite-gender profile also indicate romantic partner.
+// **IMPORTANT:** Output only a valid JSON object without any markdown formatting or extra text.
+// The JSON should map each username to one of these exact strings: "Family", "Girlfriend/Wife", "Boyfriend/Husband", "Associate", or "Friend". If no relationships can be determined, output {}.
+// Data: ${jsonData}`;
+
   const prompt = 
-`You are a seasoned intelligence analyst. Analyze the JSON data below and determine the relationships between the target user and their most engaged and tagged users.
-Follow these detailed rules:
-1. Family Members: If two or more users are tagged in the same photo and share the same last name (extracted from their fullName), classify them as "Family".
-2. Romantic Partner:
-   - If the target user's profile details indicate a male gender, then:
-       * If a female user is tagged in multiple posts with high frequency, classify her as "Girlfriend/Wife".
-       * If a male user is tagged in multiple posts with high frequency, classify him as "Boyfriend/Husband".
-   - If the target user's profile details indicate a female gender, then:
-       * If a male user is tagged in multiple posts with high frequency, classify him as "Boyfriend/Husband".
-3. Associates: If business-related comments or multiple interactions (e.g., a combination of likes and comments) are evident, classify as "Associate".
-4. Friends: Otherwise, classify as "Friend".
-**IMPORTANT:** Output only a valid JSON object without any markdown formatting or extra text.
-The JSON should map each username to one of these exact strings: "Family", "Girlfriend/Wife", "Boyfriend/Husband", "Associate", or "Friend". If no relationships can be determined, output {}.
+`Analyze the target user's social media connections and classify relationships as Friend, Associate, Relative, or Girlfriend/Boyfriend based on:
+
+Same last name in likes or comments → Relative
+More than 2 likes/comments from the same profile with slang phrases (e.g., "bro you livin", "I see my man", "let’s go") → Friend
+Business-like or formal comments → Associate
+Multiple tags or likes from an opposite-gender profile:
+  – If the target is male and the profile is female with high tag/like frequency → Girlfriend/Wife
+  – If the target is female and the profile is male with high tag/like frequency → Boyfriend/Husband
+Multiple likes from an opposite-gender profile alone can also indicate a romantic partner
+
+IMPORTANT:
+• Output only a valid JSON object without any markdown or extra text.
+• Map each username to one of these exact strings: "Family", "Associate", "Friend", "Girlfriend/Wife", or "Boyfriend/Husband".
+• If no relationships can be determined, output {}.
+
 Data: ${jsonData}`;
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
