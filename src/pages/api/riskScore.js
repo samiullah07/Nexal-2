@@ -1952,14 +1952,12 @@ Data: ${jsonData}`;
     })
   });
   const responseText = await response.text();
-  // ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  console.log('OpenAI raw response:', responseText);
 
   if (!response.ok)
     throw new Error(`OpenAI API error (risk chunk): ${responseText}`);
   const dataResp = JSON.parse(responseText);
   let content = dataResp.choices[0].message.content.trim();
-  console.log('Interests content to parse:', content);
+  // console.log('Interests content to parse:', content);
   const score = dataResp.choices[0].message.content.trim();
   if (!isValidRiskScore(score)) console.warn("Invalid risk score received:", score);
   return score;

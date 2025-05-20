@@ -1339,7 +1339,9 @@ function getSightEngineLabel(analysis) {
 
 export default function PostSearch({ username }) {
   const [search, setSearch] = useState("");
-  const [keyword, setKeyword] = useState("");          // comma-separated terms
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState("");
+
   const [selectedPost, setSelectedPost] = useState(null);
   const [showChildPosts, setShowChildPosts] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -1350,6 +1352,8 @@ export default function PostSearch({ username }) {
   const [showFilters, setShowFilters] = useState(false);
   const [searchKeywords, setSearchKeywords] = useState("");
   const [showStories, setShowStories] = useState(false);
+  const [commentTags, setCommentTags] = useState([]);
+  const [commentTagInput, setCommentTagInput] = useState("");
 
   // Fetch posts data
   const { data, error } = useSWR(
@@ -1493,50 +1497,79 @@ export default function PostSearch({ username }) {
         };
       }): [];
 
-// // Pink Search Functionlity
- const terms = keyword
-   .split(",")
-   .map(t => t.trim().toLowerCase())
-   .filter(Boolean);
 
-  const filteredPosts = posts.filter(post => {
+
+  // Instead of splitting a comma‑string, just use `tags` directly.
+  const terms = tags;
+
+  const filteredPosts = posts.filter((post) => {
     const text = post.titleSnippet.toLowerCase();
 
-   // optional single-term search
+    // optional single‑term search
     const byTitle = search
-     ? text.includes(search.toLowerCase())
-    : true;
-
-    // multi-keyword: require at least one term to match
-    const byMulti = terms.length
-      ? terms.some(kw => text.includes(kw))
+      ? text.includes(search.toLowerCase())
       : true;
 
-   const byDate = dateFilter
+    // multi‑keyword: require at least one term to match
+    const byMulti = terms.length
+      ? terms.some((kw) => text.includes(kw))
+      : true;
+
+    const byDate = dateFilter
       ? new Date(post.dateTime).toLocaleDateString() ===
         new Date(dateFilter).toLocaleDateString()
-     : true;
+      : true;
 
     const byLabel = labelFilter
       ? post.sightLabel.includes(labelFilter)
       : true;
-   return byTitle && byMulti && byDate && byLabel;
+
+    return byTitle && byMulti && byDate && byLabel;
   });
-  const handleKeywordChange = (e) => setKeyword(e.target.value);
+
+  // ================================
+  // 8) HANDLERS FOR TAG INPUT (JSX)
+  // ================================
+  const handleTagKeyDown = (e) => {
+    // When user presses Enter or comma, add a new tag
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const val = tagInput.trim().toLowerCase();
+      if (val && !tags.includes(val)) {
+        setTags((prev) => [...prev, val]);
+      }
+      setTagInput("");
+    }
+  };
+
+  const removeTag = (tagToRemove) => {
+    setTags((prev) => prev.filter((t) => t !== tagToRemove));
+  };
 
 
-
-  // Filter comments for search
   const filteredComments =
-    commentsData?.comments?.filter((comment) =>
-      searchKeywords
-        ? searchKeywords
-            .split(",")
-            .some((keyword) =>
-              comment.text.toLowerCase().includes(keyword.trim().toLowerCase())
-            )
-        : true
-    ) || [];
+    commentsData?.comments?.filter((comment) => {
+      const text = comment.text.toLowerCase();
+      if (commentTags.length === 0) return true;
+
+      return commentTags.some((kw) => text.includes(kw));
+    }) || [];
+
+  const handleCommentTagKeyDown = (e) => {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      const val = commentTagInput.trim().toLowerCase();
+      if (val && !commentTags.includes(val)) {
+        setCommentTags((prev) => [...prev, val]);
+      }
+      setCommentTagInput("");
+    }
+  };
+
+  const removeCommentTag = (tagToRemove) => {
+    setCommentTags((prev) => prev.filter((t) => t !== tagToRemove));
+  };
+
 
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
@@ -1681,16 +1714,39 @@ export default function PostSearch({ username }) {
     <div className="p-6 text-white">
       <h1 className="text-[40px] text-[#F0FFFF] font-semibold mb-4">Summary</h1>
 
-  <div className="mb-6">
-  <h2 className="text-[20px] mb-2">Multiple-Keyword Search</h2>
- <input
-   type="text"
-    placeholder="Search for multiple keywords e.g. beach, travel, summer"
-    value={keyword}
-    onChange={handleKeywordChange}
-    className="w-full p-3 bg-[#1f2937] text-white border border-gray-500 rounded-md focus:outline-none"
-  />
-      </div>
+
+      {/* ==============================MULTIPLE‑KEYWORD SEARCH (TAG INPUT) ============================== */}
+<div className="mb-6">
+  <h2 className="text-[20px] mb-2">Multiple‑Keyword Search</h2>
+
+  <div className="flex flex-wrap items-center gap-2 bg-[#1f2937] border border-gray-500 rounded-md px-2 py-1 focus-within:border-teal-400">
+    {tags.map((tag) => (
+      <span
+        key={tag}
+        className="flex items-center bg-gradient-to-r from-teal-400 to-blue-500 text-white rounded-sm px-4 py-[4px] text-md"
+      >
+        {tag}
+        <button
+          onClick={() => removeTag(tag)}
+          className="ml-2 text-white font-bold"
+          type="button"
+        >
+          &times;
+        </button>
+      </span>
+    ))}
+
+    <input
+      type="text"
+      placeholder="Type a keyword and press Enter (or comma)…"
+      value={tagInput}
+      onChange={(e) => setTagInput(e.target.value)}
+      onKeyDown={handleTagKeyDown}
+      className="flex-grow bg-transparent text-white placeholder-gray-400 focus:outline-none px-1 py-1"
+    />
+  </div>
+</div>
+
 
       {/* Search and Filter Controls */}
       <div className="flex flex-col gap-4 mb-4">
@@ -2097,115 +2153,94 @@ export default function PostSearch({ username }) {
               </div>
             )}
 
-            {/* Comments Section */}
-            {/* <div className="mt-2">
+
+  {/* Comments Section */}
+            <div className="mt-2">
               <h3 className="font-semibold mb-1">Comments</h3>
+
+              {/* Error state */}
               {commentsError && (
                 <p className="text-[14px] text-red-300">
                   Error loading comments.
                 </p>
               )}
+
+              {/* Main comments conditional */}
               {!commentsData && !commentsError ? (
+                // Loading
                 <p className="text-[14px] text-gray-300">Loading comments...</p>
               ) : commentsData &&
                 commentsData.comments &&
                 commentsData.comments.length > 0 ? (
-                <div className="mt-4">
-                  {commentsData.comments.map((comment, i) => (
-                    <div
-                      key={i}
-                      className="p-2 rounded text-[14px] text-gray-100 border-b border-gray-600 flex items-center gap-2"
-                    >
-                      <Image
-                        src={comment.profilePic}
-                        alt={comment.username}
-                        width={30}
-                        height={30}
-                        className="rounded-full"
+                <>
+                  {/* 1) TAG‑STYLE filter for comments */}
+                  <div className="mb-3">
+                    <div className="flex flex-wrap items-center gap-2 bg-[#1f2937] border border-gray-500 rounded-md px-2 py-1 focus-within:border-teal-400">
+                      {commentTags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="flex items-center bg-gradient-to-r from-teal-400 to-blue-500 text-white rounded-sm px-4 py-[4px] text-md"
+                        >
+                          {tag}
+                          <button
+                            onClick={() => removeCommentTag(tag)}
+                            className="ml-2 text-white font-bold"
+                            type="button"
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))}
+
+                      <input
+                        type="text"
+                        placeholder="Type a comment‐keyword and press Enter (or comma)…"
+                        value={commentTagInput}
+                        onChange={(e) => setCommentTagInput(e.target.value)}
+                        onKeyDown={handleCommentTagKeyDown}
+                        className="flex-grow bg-transparent text-white placeholder-gray-400 focus:outline-none px-1 py-1"
                       />
-                      <div>
-                        <p>
-                          <strong>{comment.username}</strong> ({comment.date}):
-                        </p>
-                        <p>{comment.text}</p>
-                      </div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+
+                  {/* 2) Filtered comment list or “no matches” */}
+                  <div className="mt-4">
+                    {filteredComments.length > 0 ? (
+                      filteredComments.map((comment, i) => (
+                        <div
+                          key={i}
+                          className="p-2 rounded text-[14px] text-gray-100 border-b border-gray-600 flex items-center gap-2"
+                        >
+                          <Image
+                            src={comment.profilePic}
+                            alt={comment.username}
+                            width={30}
+                            height={30}
+                            className="rounded-full"
+                          />
+                          <div>
+                            <p>
+                              <strong>{comment.username}</strong> ({comment.date}
+                              ):
+                            </p>
+                            <p>{comment.text}</p>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-[14px] text-gray-300">
+                        No comments match those keywords.
+                      </p>
+                    )}
+                  </div>
+                </>
               ) : (
+                // Fallback if there are zero comments at all
                 <p className="text-[14px] text-gray-300">
                   No comments available.
                 </p>
               )}
-            </div> */}
-            
-
-            {/* Comments Section */}
-<div className="mt-2">
-  <h3 className="font-semibold mb-1">Comments</h3>
-
-  {/* Error state */}
-  {commentsError && (
-    <p className="text-[14px] text-red-300">
-      Error loading comments.
-    </p>
-  )}
-
-  {/* Main comments conditional */}
-  { !commentsData && !commentsError ? (
-    // Loading
-    <p className="text-[14px] text-gray-300">Loading comments...</p>
-  ) : commentsData && commentsData.comments && commentsData.comments.length > 0 ? (
-    // Data loaded & comments exist
-    <>
-      {/* 1) Keyword filter input */}
-      <div className="mb-3">
-        <input
-          type="text"
-          placeholder="Filter comments by keywords (comma-separated)"
-          className="w-full p-2 bg-[#1f2937] text-white border border-gray-500 rounded-md focus:outline-none"
-          value={searchKeywords}
-          onChange={(e) => setSearchKeywords(e.target.value)}
-        />
-      </div>
-
-      {/* 2) Filtered list or “no matches” */}
-      <div className="mt-4">
-        {filteredComments.length > 0 ? (
-          filteredComments.map((comment, i) => (
-            <div
-              key={i}
-              className="p-2 rounded text-[14px] text-gray-100 border-b border-gray-600 flex items-center gap-2"
-            >
-              <Image
-                src={comment.profilePic}
-                alt={comment.username}
-                width={30}
-                height={30}
-                className="rounded-full"
-              />
-              <div>
-                <p>
-                  <strong>{comment.username}</strong> ({comment.date}):
-                </p>
-                <p>{comment.text}</p>
-              </div>
             </div>
-          ))
-        ) : (
-          <p className="text-[14px] text-gray-300">
-            No comments match those keywords.
-          </p>
-        )}
-      </div>
-    </>
-  ) : (
-    // Fallback if there are zero comments at all
-    <p className="text-[14px] text-gray-300">
-      No comments available.
-    </p>
-  )}
-</div>
 
           </div>
         </div>

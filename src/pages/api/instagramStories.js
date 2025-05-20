@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   };
 
   try {
-    console.log("Fetching stories URL:", url);
+    // console.log("Fetching stories URL:", url);
     const response = await fetch(url, options);
     const text = await response.text();
     let data;
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: "Invalid JSON from stories API." });
     }
 
-    console.log("Full API response:", JSON.stringify(data, null, 2));
+    // console.log("Full API response:", JSON.stringify(data, null, 2));
 
     if (!response.ok) {
       console.error(`Error fetching stories. Status: ${response.status}`, data);
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
 
     // Extract stories from the `items` array
     const stories = data.data?.items;
-    console.log("Extracted stories:", stories);
+    // console.log("Extracted stories:", stories);
 
     if (!Array.isArray(stories) || stories.length === 0) {
       console.warn(`No stories found for user '${username}'.`);
