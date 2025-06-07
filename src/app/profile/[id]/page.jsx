@@ -123,7 +123,7 @@ export default function ProfilePage() {
               <ProfileCard profile={profileData} />
             </div>
 
-            {/* Stats Cards */}
+            Stats Cards
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-7 mx-12 mt-6">
               {stats.map((item, idx) => (
                 <div

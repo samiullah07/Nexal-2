@@ -4,7 +4,11 @@ const nextConfig = {
       domains: ["scontent-waw2-2.cdninstagram.com",
                 "via.placeholder.com",
                 'instagram.fmci2-1.fna.fbcdn.net',
-                "example.com" // Added here
+                "example.com",
+                "scontent-vie1-1.cdninstagram.com",
+                "scontent.cdninstagram.com",
+                "platform-lookaside.fbsbx.com", // Added here
+
 
       ],
 

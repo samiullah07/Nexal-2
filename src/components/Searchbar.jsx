@@ -1,3 +1,4 @@
+// src/components/Searchbar.jsx
 "use client";
 import { useState } from "react";
 import { Search } from "lucide-react";
@@ -14,7 +15,6 @@ const SearchBar = ({ placeholder = "Search Instagram..." }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState("Instagram");
 
-
   const handleSearch = async (platformUsed = selectedPlatform) => {
     const trimmedQuery = query.trim();
 
@@ -24,14 +24,16 @@ const SearchBar = ({ placeholder = "Search Instagram..." }) => {
       return;
     }
 
-    if (platformUsed === "Facebook") {
-      setError("Facebook is not supported yet.");
-      setProfile(null);
-      return;
-    }
+    // Build the correct API route based on platform
+    const apiRoute =
+      platformUsed === "Facebook"
+        ? "facebookSearch"
+        : platformUsed.toLowerCase();
 
-    if (cachedData[trimmedQuery]) {
-      setProfile(cachedData[trimmedQuery]);
+    // Use a cache key that includes platform, so Instagram/"foo" and Facebook/"foo" don't collide
+    const cacheKey = platformUsed + ":" + trimmedQuery;
+    if (cachedData[cacheKey]) {
+      setProfile(cachedData[cacheKey]);
       setError("");
       return;
     }
@@ -41,7 +43,9 @@ const SearchBar = ({ placeholder = "Search Instagram..." }) => {
     setProfile(null);
 
     try {
-      const response = await fetch(`/api/${platformUsed.toLowerCase()}?username=${trimmedQuery}`);
+      const response = await fetch(
+        `/api/${apiRoute}?username=${trimmedQuery}`
+      );
       const data = await response.json();
 
       if (!response.ok) {
@@ -50,8 +54,24 @@ const SearchBar = ({ placeholder = "Search Instagram..." }) => {
         return;
       }
 
-      setProfile(data);
-      setCachedData((prev) => ({ ...prev, [trimmedQuery]: data }));
+      // If it's Facebook, we know our API returns { username, image, … },
+      // but the UI expects `profile_pic_url` + `username`. So remap:
+      let formattedData;
+      if (platformUsed === "Facebook") {
+        formattedData = {
+          username: data.username,
+          profile_pic_url: data.image || "/no-profile-pic-img.png",
+        };
+      } else {
+        // Instagram (and any other future platforms) already return { username, profile_pic_url, … }
+        formattedData = data;
+      }
+
+      setProfile(formattedData);
+      setCachedData((prev) => ({
+        ...prev,
+        [cacheKey]: formattedData,
+      }));
     } catch (err) {
       console.error("Error fetching profile:", err);
       setError("An error occurred while fetching profile.");
@@ -60,11 +80,13 @@ const SearchBar = ({ placeholder = "Search Instagram..." }) => {
     }
   };
 
-
   const onDropdownClick = (platform) => {
     setSelectedPlatform(platform);
     setIsOpen(false);
-    handleSearch(platform); 
+    // Immediately re-run search on the existing query (if any)
+    if (query.trim()) {
+      handleSearch(platform);
+    }
   };
 
   return (
@@ -118,8 +140,16 @@ const SearchBar = ({ placeholder = "Search Instagram..." }) => {
       {loading && <p className="text-[#F0FFFF]">Loading...</p>}
 
       {profile && (
-        <Link href={`/profile/${profile.username}`}>
-          <div className="w-[1000px] bg-gray-800 border border-cyan-600 
+        // Choose the appropriate route based on platform:
+        <Link
+          href={
+            selectedPlatform === "Facebook"
+              ? `/facebook-profile/${profile.username}`
+              : `/profile/${profile.username}`
+          }
+        >
+          <div
+            className="w-[1000px] bg-gray-800 border border-cyan-600 
                           rounded-lg p-4 flex items-center cursor-pointer"
           >
             <Image

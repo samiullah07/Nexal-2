@@ -2133,7 +2133,7 @@ export default function PostSearch({ username }) {
                     <div
                       key={i}
                       onClick={() => setDisplayedPost(childUrl)}
-                      className="relative w-[80px] h-[80px] flex-shrink-0 cursor-pointer"
+                      className="relative w-[90px] h-[90px] flex-shrink-0 cursor-pointer"
                     >
                       {childUrl ? (
                         <Image
