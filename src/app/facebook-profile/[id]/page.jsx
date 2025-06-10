@@ -229,15 +229,15 @@ export default async function ProfilePage({ params }) {
         </div>
 
         {/* Relationship List */}
-         <div className="pt-[44px] pb-[44px]">
+        <div className="pt-[44px] pb-[44px]">
         <FbRelationCard username={id} />
-        </div> 
+        </div>  
 
        {/* Interests Section */}
          <div className="pt-[44px] pb-[44px]">
       <Fb_InterestsCard username={id} />
-      </div> 
-
+      </div>  
+ 
 
         {/* ─── PROFILE POSTS ───────────────── */}
         <div className="px-7 pb-20">
