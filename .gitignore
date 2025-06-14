@@ -87,7 +87,6 @@ target/
 __pycache__/
 local_settings.py
 
-.env
 .venv/# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
@@ -120,7 +119,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # env files (can opt-in for committing if needed)
-.env*
 
 # vercel
 .vercel
@@ -128,3 +126,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+config.bat

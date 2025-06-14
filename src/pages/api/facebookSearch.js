@@ -37,6 +37,13 @@ export default async function handler(req, res) {
     });
 
     // console.log("[facebookSearch] 📤 RapidAPI responded with status:", apiRes.status);
+
+//     console.log(
+//   "[facebookSearch] 🏷️ RapidAPI headers:",
+//   JSON.stringify(Object.fromEntries(apiRes.headers.entries()), null, 2)
+// );
+
+
     // If you want raw header logging, uncomment next line:
     // console.log("[facebookSearch] 🏷️ RapidAPI headers:", JSON.stringify(apiRes.headers.raw()));
 
@@ -51,7 +58,7 @@ export default async function handler(req, res) {
 
     // 5) If status not OK, log error payload and return
     if (!apiRes.ok) {
-      // console.error("Facebook API returned error payload:", raw);
+      console.error("Facebook API returned error payload:", raw);
       return res
         .status(apiRes.status)
         .json({ error: raw.message || "Error fetching Facebook profile." });
